@@ -23,17 +23,85 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "parse.h"
-#include "data.h"
+#include <limits>
+#include <Eigen/Eigen>
 
 #define PI 3.14159265
 
 using namespace std;
 
+class BoundingSphere;
+class Joint;
  
 /* Global variables */
 char title[] = "Inverse Kinematic Simulator";
+vector<Joint*> joints;
+BoundingSphere* bsphere;
+float currZoom = 0.0f;
+float amountZoom = 0.1f;
+float xTrans = 0.0f;
+float yTrans = 0.0f;
+float amountTrans = 0.05f;
+float yRot = 0.0f;
+float xRot = 0.0f;
+float amountRot = 5;  //Degree
+GLfloat aspect;
 
+class BoundingSphere {
+public:
+    Eigen::Vector3f pmin, pmax;
+    float radius;
+
+    BoundingSphere() {
+        pmin[0] = numeric_limits<float>::infinity();
+        pmin[1] = numeric_limits<float>::infinity();
+        pmin[2] = numeric_limits<float>::infinity();
+        pmax[0] = -1.0f * numeric_limits<float>::infinity();
+        pmax[1] = -1.0f * numeric_limits<float>::infinity();
+        pmax[2] = -1.0f * numeric_limits<float>::infinity();
+        radius = 0.0f;
+    }
+};
+
+class Joint {
+public:
+    float length;
+
+    Joint(): length(0)
+    {
+    }
+
+    Joint(float length): length(length)
+    {
+    }
+
+    virtual void move() {}
+    virtual void render() {}
+};
+
+class BallJoint: public Joint{
+public:
+    Eigen::Vector3f currRot; //in degree
+
+    BallJoint(): Joint(), currRot(0, 0, 0)
+    {
+    }
+
+    BallJoint(float length): Joint(length), currRot(0, 0, 0)
+    {
+    }
+
+    void move() {
+        glRotatef(currRot.x(), 1.0f, 0.0f, 0.0f);
+        glRotatef(currRot.y(), 0.0f, 1.0f, 0.0f);
+        glRotatef(currRot.z(), 0.0f, 0.0f, 1.0f);
+    }
+
+    void render() {
+        glColor3f(0.1, 0.3, 1.0);
+        glutSolidCone(1.0f, length, 20, 20);        
+    }
+};
 
 /* Initialize OpenGL Graphics */
 void initGL() {
@@ -44,14 +112,16 @@ void initGL() {
     glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);    //Double sided lighting.
     glShadeModel(GL_SMOOTH);   // Enable smooth shading
     //Enable positional light at (1, 1, 1)
-    GLfloat light_ambient[] = {0.1, 0.3, 1.0, 1.0};
-    GLfloat light_diffuse[] = {0.1, 0.3, 1.0, 1.0};
+    GLfloat light_ambient[] = {1.0, 1.0, 1.0, 1.0};
+    GLfloat light_diffuse[] = {1.0, 1.0, 1.0, 1.0};
     GLfloat light_position[] = {1.0, 1.0, 1.0, 1.0};
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
+    glColorMaterial(GL_FRONT, GL_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);  // Nice perspective corrections
 }
  
@@ -61,42 +131,26 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers
     glMatrixMode(GL_MODELVIEW);     // To operate on model-view matrix
 
-    // Render a color-cube consisting of 6 quads with different colors
-    glLoadIdentity();                 // Reset the model-view matrix
-    glTranslatef(0.0f, 0.0f, currZoom * radius); // user input zoom.
-    glTranslatef(0.0f, 0.0f, -1.0f * 1.5 * (2 * radius / tan(PI / 4.0f)));    // initial zoom.
+    glLoadIdentity();
+
+    glTranslatef(0.0f, 0.0f, currZoom * bsphere->radius); // user input zoom.
+    glTranslatef(0.0f, 0.0f, -1.0f * 1.5 * (2 * bsphere->radius / tan(PI / 4.0f)));    // initial zoom.
     glTranslatef(xTrans, yTrans, 0.0f);          // user input translation.
-    glRotatef(yRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
-    glRotatef(xRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
-    glTranslatef(-1 * centerPos.x(), -1 * centerPos.y(), -1 * centerPos.z());  // Move object to origin.
-    
-    glColor3f(0.1f, 0.3f, 0.8f);
-    if (isSmoothShading)
-        glShadeModel(GL_SMOOTH);
-    else
-        glShadeModel(GL_FLAT);
-    if (isWireframe)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    else
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    if (isHiddenLine && isWireframe) {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glColor3f(0.1f, 0.3f, 0.8f);
-        glCallList(1);
+    glRotatef(xRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
+    glRotatef(yRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
 
-        glDisable(GL_LIGHTING);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.0, 1.0);
-        glColor3f(0.0f, 0.0f, 0.0f);
-        glCallList(1);
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glEnable(GL_LIGHTING);
-    } else {
-        glCallList(1);                // Render the surface.
+    /*float matrix[16] = {0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1};
+    glMultMatrixf(matrix);*/
+    for (int i = 0; i < joints.size(); i++) {
+        joints[i]->move();
+        joints[i]->render();
+        glTranslatef(0.0f, 0.0f, joints[i]->length);
     }
-    glFlush();
 
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glutSolidSphere(3.0f, 20, 20);
+
+    glFlush();
     glutSwapBuffers();  // Swap the front and back frame buffers (double buffering)
 }
  
@@ -117,16 +171,10 @@ void reshape(GLsizei width, GLsizei height) {  // GLsizei for non-negative integ
     gluPerspective(45.0f, aspect, 0.1f, 99999999.0f);
 }
  
-/*void idle(){
-    currDeg += amount;
-   if (currDeg >= 360)
-        currDeg -= 360;
-    glutPostRedisplay();
-}*/
 
 
 /* Parse commandline arguments. */
-void parseCommandLineOptions(int argc, char *argv[]) {
+/*void parseCommandLineOptions(int argc, char *argv[]) {
     string s;
     if (argc < 3) {
         cerr << "Not enough arguemnts, need at least .bez file name and parameter." << endl;
@@ -151,77 +199,12 @@ void parseCommandLineOptions(int argc, char *argv[]) {
                 cout << "Ignored unknown option " << s << endl;
         }
     }
-}
+}*/
 
-
-/* Generating a bezier surface and pass the info to OpenGL for rendering. */
-void generateSurface() {
-    if (debug) {
-        cout << "Parsing file " << filename << endl;
-        cout << "isUniform = " << isUniform << endl;
-    }
-    vector<Patch*> patches;
-    parse(patches, filename);
-    glNewList(1, GL_COMPILE);
-    if (isUniform) {
-        if (debug)
-            cout << "Uniform subdivision." << endl;
-        glBegin(GL_QUADS);
-    } else {
-        if (debug)
-            cout << "Adaptive subdivision." << endl;
-        glBegin(GL_TRIANGLES);
-    }
-    Eigen::Vector3f minP, maxP;
-    minP << numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), 
-        numeric_limits<float>::infinity();
-    maxP << -1.0 * numeric_limits<float>::infinity(), -1.0 * numeric_limits<float>::infinity(),
-        -1.0 * numeric_limits<float>::infinity();
-    for (int i = 0; i < patches.size(); i++) {
-        if (isUniform)
-            subdivisionPatch(*patches[i], parameter);
-        else
-            adaptiveTessellation(*patches[i], parameter);
-        minP[0] = std::min(minP[0], patches[i]->minP[0]);
-        minP[1] = std::min(minP[1], patches[i]->minP[1]);
-        minP[2] = std::min(minP[2], patches[i]->minP[2]);
-        maxP[0] = std::max(maxP[0], patches[i]->maxP[0]);
-        maxP[1] = std::max(maxP[1], patches[i]->maxP[1]);
-        maxP[2] = std::max(maxP[2], patches[i]->maxP[2]);
-    }
-    glEnd();
-    glEndList();
-    centerPos = (minP + maxP) / 2.0f;
-    radius = (maxP - centerPos).norm();
-
-    if (isUniform) {
-        cout << "Uniform subdivision: ";
-    } else {
-        cout << "Adaptive subdivision: ";
-    }
-    cout << numDone << " faces." << endl;
-    cout << "Radius of bounding sphere = " << radius << endl;
-
-    if (debug) {
-        cout << "minP = (" << minP.x() << ", " << minP.y() << ", " << minP.z() << ")" << endl;
-        cout << "maxP = (" << maxP.x() << ", " << maxP.y() << ", " << maxP.z() << ")" << endl;
-        cout << "centerPos = (" << centerPos.x() << ", " << centerPos.y() << ", " << centerPos.z() << ")" << endl;
-        cout << "radius = " << radius << endl;
-    }
-}
 
 /* Handler for keystroke */
 void keyboard(unsigned char key, int x, int y) {
     switch (key) {
-        case 's':
-            isSmoothShading = !isSmoothShading;
-            break;
-        case 'w':
-            isWireframe = !isWireframe;
-            break;
-        case 'h':
-            isHiddenLine = !isHiddenLine;
-            break;
         case '+':
         case '=':
             currZoom += amountZoom;
@@ -259,25 +242,36 @@ void SpecialInput(int key, int x, int y)
         switch(key)
         {
         case GLUT_KEY_UP:
-            yRot -= amountRot;
-            break;
-        case GLUT_KEY_DOWN:
-            yRot += amountRot;
-            break;
-        case GLUT_KEY_LEFT:
             xRot -= amountRot;
             break;
-        case GLUT_KEY_RIGHT:
+        case GLUT_KEY_DOWN:
             xRot += amountRot;
+            break;
+        case GLUT_KEY_LEFT:
+            yRot -= amountRot;
+            break;
+        case GLUT_KEY_RIGHT:
+            yRot += amountRot;
             break;
         }
 
-        if (xRot >= 360)
-            xRot = xRot - 360;
         if (yRot >= 360)
             yRot = yRot - 360;
+        if (xRot >= 360)
+            xRot = xRot - 360;
     }
     glutPostRedisplay();
+}
+
+void setBoundingSphere(BoundingSphere *bsphere, vector<Joint*> &joints) {
+    bsphere->radius = 0.0f;
+    for (int i = 0; i < joints.size(); i++)
+        bsphere->radius += joints[i]->length;
+}
+
+void printout() {
+    cout << "Number of joints = " << joints.size() << endl;
+    cout << "Radius of bounding sphere = " << bsphere->radius << endl;
 }
 
 /* Main function: GLUT runs as a console application starting at main() */
@@ -294,8 +288,17 @@ int main(int argc, char** argv) {
     glutKeyboardFunc(keyboard);     // Register callback handler for keystroke
     glutSpecialFunc(SpecialInput);  // Register callback handler for special keystroke
     initGL();                       // Our own OpenGL initialization
-    parseCommandLineOptions(argc, argv);
-    generateSurface();
+    
+    //parseCommandLineOptions(argc, argv);
+    joints.push_back(new BallJoint(5.0f));
+    joints.push_back(new BallJoint(10.0f));
+    joints.push_back(new BallJoint(5.0f));
+    joints.push_back(new BallJoint(15.0f));
+
+    bsphere = new BoundingSphere();
+    setBoundingSphere(bsphere, joints);
+    printout();
+
     glutMainLoop();                 // Enter the infinite event-processing loop
     return 0;
 }
