@@ -32,10 +32,13 @@ using namespace std;
 
 class BoundingSphere;
 class Joint;
- 
+class System;
+float clampAngle(float, float);
+float degToRad(float);
+float radToDeg(float);
+
 /* Global variables */
 char title[] = "Inverse Kinematic Simulator";
-vector<Joint*> joints;
 BoundingSphere* bsphere;
 float currZoom = 0.0f;
 float amountZoom = 0.1f;
@@ -45,7 +48,9 @@ float amountTrans = 0.05f;
 float yRot = 0.0f;
 float xRot = 0.0f;
 float amountRot = 5;  //Degree
+float eps = 0.01;     //Tolerance of the distance between end point and goal.
 GLfloat aspect;
+
 
 class BoundingSphere {
 public:
@@ -66,29 +71,39 @@ public:
 class Joint {
 public:
     float length;
+    Eigen::Transform<float, 3, Eigen::Affine> bodyToWorld;
+    Eigen::Transform<float, 3, Eigen::Affine> worldToBody;
+    int numColumns;
 
-    Joint(): length(0)
+    Joint(): length(0), numColumns(0)
     {
+        bodyToWorld.setIdentity();
+        worldToBody.setIdentity();
     }
 
-    Joint(float length): length(length)
+    Joint(float length): length(length), numColumns(0)
     {
+        bodyToWorld.setIdentity();
+        worldToBody.setIdentity();
     }
 
     virtual void move() {}
     virtual void render() {}
+    virtual void update(float dx, float dy, float dz) {}
 };
 
 class BallJoint: public Joint{
 public:
-    Eigen::Vector3f currRot; //in degree
+    Eigen::Vector3f currRot; //in radians
 
     BallJoint(): Joint(), currRot(0, 0, 0)
     {
+        numColumns = 3;
     }
 
     BallJoint(float length): Joint(length), currRot(0, 0, 0)
     {
+        numColumns = 3;
     }
 
     void move() {
@@ -101,7 +116,132 @@ public:
         glColor3f(0.1, 0.3, 1.0);
         glutSolidCone(1.0f, length, 20, 20);        
     }
+
+    void update(float dx, float dy, float dz) {
+        currRot[0] += dx;
+        currRot[1] += dy;
+        currRot[2] += dz;
+
+        currRot[0] = clampAngle(currRot[0], 2*PI);
+        currRot[1] = clampAngle(currRot[1], 2*PI);
+        currRot[2] = clampAngle(currRot[2], 2*PI);
+
+        //The transformation for calculating the p vector for this joint.
+        worldToBody.setIdentity();
+        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.x(), Eigen::Vector3f(1, 0, 0)));
+        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.y(), Eigen::Vector3f(0, 1, 0)));
+        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.z(), Eigen::Vector3f(0, 0, 1)));
+
+        //The transformation for changing Jacobian back to global Jacobian.
+        bodyToWorld.setIdentity();
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.x(), Eigen::Vector3f(1, 0, 0)));
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.y(), Eigen::Vector3f(0, 1, 0)));
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.z(), Eigen::Vector3f(0, 0, 1)));
+    }
 };
+
+
+class System {
+public:
+    vector<Joint*> joints;
+    Eigen::Vector3f basepoint;      //Base point of the system of arms in world space.
+    Eigen::Vector3f endpoint;       //End point (End effector) of the system of arms in world space.
+    Eigen::MatrixXf jacobian;
+    int numColumns;
+    float length;
+
+    void addJoints(vector<Joint*> joints) {
+        this->joints = joints;
+        basepoint << 0, 0, 0;
+        endpoint << 0, 0, 0;
+        numColumns = 0;
+        length = 0;
+        for (int i = 0; i < joints.size(); i++) {
+            endpoint[2] += joints[i]->length;
+            length += joints[i]->length;
+            numColumns += joints[i]->numColumns;
+        }
+        jacobian = Eigen::MatrixXf(3, numColumns);
+    }
+
+    void updateEndPoint() {
+
+    }
+
+    void updateAngles(Eigen::VectorXf dtheta) {
+
+    }
+
+    Eigen::MatrixXf getJacobian() {
+
+    }
+
+    bool update(Eigen::Vector3f g) {
+        Eigen::Vector3f g_sys = g - basepoint;
+
+        //If the goal is too far away, use a possible goal instead.
+        if (g_sys.norm() > length) {
+            g = g_sys.normalized() * length;
+        }
+
+        Eigen::Vector3f dp = g - endpoint;
+        if (dp.norm() > eps) {
+            Eigen::MatrixXf J = getJacobian();
+            Eigen::JacobiSVD<Eigen::MatrixXf> svd(J);
+            Eigen::VectorXf dtheta = svd.solve(dp);
+            
+            updateAngles(dtheta);
+            updateEndPoint();
+            return false;
+        }
+        return true;
+    }
+
+    void render() {
+        glTranslatef(0.0f, 0.0f, currZoom * bsphere->radius); // user input zoom.
+        glTranslatef(0.0f, 0.0f, -1.0f * 1.5 * (2 * bsphere->radius / tan(PI / 4.0f)));    // initial zoom.
+        glTranslatef(xTrans, yTrans, 0.0f);          // user input translation.
+        glRotatef(xRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
+        glRotatef(yRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
+
+        /*float matrix[16] = {0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1};
+        glMultMatrixf(matrix);*/
+        for (int i = 0; i < joints.size(); i++) {
+            joints[i]->move();
+            joints[i]->render();
+            glTranslatef(0.0f, 0.0f, joints[i]->length);
+        }
+
+        glColor3f(1.0f, 0.0f, 0.0f);
+        glutSolidSphere(3.0f, 20, 20);
+    }
+
+};
+System sys;
+
+float clampAngle(float angle, float range) {
+    if (angle >= range)
+        angle = angle - range;
+    if (angle <= 0)
+        angle = range + angle;
+    return angle;
+}
+
+float radToDeg(float rad) {
+    return rad * 180.0f / PI;
+}
+
+float degToRad(float deg) {
+    return deg * PI / 180.0f;
+}
+
+void updateSystem() {
+
+}
+
+void renderSystem() {
+    sys.render();
+}
 
 /* Initialize OpenGL Graphics */
 void initGL() {
@@ -133,22 +273,8 @@ void display() {
 
     glLoadIdentity();
 
-    glTranslatef(0.0f, 0.0f, currZoom * bsphere->radius); // user input zoom.
-    glTranslatef(0.0f, 0.0f, -1.0f * 1.5 * (2 * bsphere->radius / tan(PI / 4.0f)));    // initial zoom.
-    glTranslatef(xTrans, yTrans, 0.0f);          // user input translation.
-    glRotatef(xRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
-    glRotatef(yRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
-
-    /*float matrix[16] = {0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1};
-    glMultMatrixf(matrix);*/
-    for (int i = 0; i < joints.size(); i++) {
-        joints[i]->move();
-        joints[i]->render();
-        glTranslatef(0.0f, 0.0f, joints[i]->length);
-    }
-
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glutSolidSphere(3.0f, 20, 20);
+    updateSystem();
+    renderSystem();
 
     glFlush();
     glutSwapBuffers();  // Swap the front and back frame buffers (double buffering)
@@ -270,7 +396,7 @@ void setBoundingSphere(BoundingSphere *bsphere, vector<Joint*> &joints) {
 }
 
 void printout() {
-    cout << "Number of joints = " << joints.size() << endl;
+    cout << "Number of joints = " << sys.joints.size() << endl;
     cout << "Radius of bounding sphere = " << bsphere->radius << endl;
 }
 
@@ -288,12 +414,15 @@ int main(int argc, char** argv) {
     glutKeyboardFunc(keyboard);     // Register callback handler for keystroke
     glutSpecialFunc(SpecialInput);  // Register callback handler for special keystroke
     initGL();                       // Our own OpenGL initialization
-    
+ 
+    vector<Joint*> joints;   
     //parseCommandLineOptions(argc, argv);
     joints.push_back(new BallJoint(5.0f));
     joints.push_back(new BallJoint(10.0f));
     joints.push_back(new BallJoint(5.0f));
     joints.push_back(new BallJoint(15.0f));
+
+    sys.joints = joints;
 
     bsphere = new BoundingSphere();
     setBoundingSphere(bsphere, joints);
