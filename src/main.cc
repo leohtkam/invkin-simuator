@@ -225,10 +225,10 @@ void SpecialInput(int key, int x, int y)
     glutPostRedisplay();
 }
 
-void setBoundingSphere(BoundingSphere *bsphere, vector<Joint*> &joints) {
+void setBoundingSphere(BoundingSphere *bsphere, System sys) {
     bsphere->radius = 0.0f;
-    for (int i = 0; i < joints.size(); i++)
-        bsphere->radius += joints[i]->length;
+    for (int i = 0; i < sys.joints.size(); i++)
+        bsphere->radius += sys.joints[i]->length;
 }
 
 void printout() {
@@ -257,11 +257,12 @@ int main(int argc, char** argv) {
     joints.push_back(new BallJoint(10.0f));
     joints.push_back(new BallJoint(5.0f));
     joints.push_back(new BallJoint(15.0f));
+    ((BallJoint*) joints[0])->currRot<< 0, 0.5 * PI, 0;
 
     sys.joints = joints;
 
     bsphere = new BoundingSphere();
-    setBoundingSphere(bsphere, joints);
+    setBoundingSphere(bsphere, sys);
     printout();
 
     glutMainLoop();                 // Enter the infinite event-processing loop

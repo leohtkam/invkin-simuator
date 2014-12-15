@@ -32,7 +32,7 @@ public:
 
     virtual void move() {}
     virtual void render() {}
-    virtual void getJacobian(Eigen::MatrixXf &jacobian) {}
+    virtual void getJacobian(Eigen::MatrixXf &J, Eigen::Vector3f p) {}
     virtual void update(float dx, float dy, float dz) {}
 };
 
@@ -51,9 +51,9 @@ public:
     }
 
     void move() {
-        glRotatef(currRot.x(), 1.0f, 0.0f, 0.0f);
-        glRotatef(currRot.y(), 0.0f, 1.0f, 0.0f);
-        glRotatef(currRot.z(), 0.0f, 0.0f, 1.0f);
+        glRotatef(radToDeg(currRot.x()), 1.0f, 0.0f, 0.0f);
+        glRotatef(radToDeg(currRot.y()), 0.0f, 1.0f, 0.0f);
+        glRotatef(radToDeg(currRot.z()), 0.0f, 0.0f, 1.0f);
     }
 
     void render() {
@@ -83,8 +83,16 @@ public:
         bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.z(), Eigen::Vector3f(0, 0, 1)));
     }
 
-    void getJacobian(Eigen::MatrixXf &jacobian) {
-
+    void getJacobian(Eigen::MatrixXf &J, Eigen::Vector3f p) {
+        J(0, 0) = 0;
+        J(0, 1) = -p.z();
+        J(0, 2) = p.y();
+        J(1, 0) = p.z();
+        J(1, 1) = 0;
+        J(1, 2) = -p.x();
+        J(2, 0) = -p.y();
+        J(2, 1) = p.x();
+        J(2, 2) = 0;
     }
 };
 
@@ -94,7 +102,7 @@ public:
     std::vector<Joint*> joints;
     Eigen::Vector3f basepoint;      //Base point of the system of arms in world space.
     Eigen::Vector3f endpoint;       //End point (End effector) of the system of arms in world space.
-    Eigen::MatrixXf jacobian;
+    Eigen::MatrixXf J;
     float eps;                      //Tolerance of the distance between end point and goal.
     int numColumns;
     float length;
@@ -111,19 +119,62 @@ public:
             length += joints[i]->length;
             numColumns += joints[i]->numColumns;
         }
-        jacobian = Eigen::MatrixXf(3, numColumns);
+        J = Eigen::MatrixXf(3, numColumns);
     }
 
     void updateEndPoint() {
-
+        endpoint << 0, 0, 0;
+        Eigen::Transform<float, 3, Eigen::Affine> t;
+        Joint* joint;
+        for (int i = joints.size() - 1; i >= 0; i--) {
+            joint = joints[i];
+            t.setIdentity();
+            t.translate(Eigen::Vector3f(0, 0, joint->length));
+            endpoint = joint->worldToBody * endpoint;
+        }
     }
 
     void updateAngles(Eigen::VectorXf dtheta) {
-
+        int x = 0;
+        for (int i = 0; i < joints.size(); i++) {
+            if (joints[i]->numColumns == 3)
+                joints[i]->update(dtheta[x], dtheta[x+1], dtheta[x+2]);
+            else
+                joints[i]->update(dtheta[x], 0, 0);
+            x += joints[i]->numColumns;
+        }
     }
 
-    void getJacobian(Eigen::MatrixXf &jacobian) {
+    void getJacobian(Eigen::MatrixXf &J) {
+        Eigen::Vector3f p(0, 0, 0);
+        int col;
+        Eigen::MatrixXf jac(3, 3);
+        Eigen::Transform<float, 3, Eigen::Affine> t;
 
+        Joint* joint;
+        col = J.cols();
+        //Start from the last arm, iterating backward, to calculate the jacobian local to each arm.
+        for (int i = joints.size()-1; i >= 0; i--) {
+            joint = joints[i];
+            //Get the p vector.
+            t.setIdentity();
+            t.translate(Eigen::Vector3f(0, 0, joint->length));
+            p = t * joint->worldToBody * p;
+            //Get the local jacobian.
+            col -= joint->numColumns;
+            joint->getJacobian(jac, p);
+            J.block(0, col, 3, joint->numColumns) = jac;
+        }
+
+        t.setIdentity();
+        col = 0;
+        //Start from the first arm, to transform the local jacobian into world space.
+        for (int i = 0; i < joints.size(); i++) {
+            joint = joints[i];
+            J.block(0, col, 3, joint->numColumns) = t.matrix() * J.block(0, col, 3, joint->numColumns);
+            col += joint->numColumns;
+            t = t * joint->bodyToWorld;
+        }
     }
 
     bool update(Eigen::Vector3f g) {
@@ -136,8 +187,8 @@ public:
 
         Eigen::Vector3f dp = g - endpoint;
         if (dp.norm() > eps) {
-            getJacobian(jacobian);
-            Eigen::JacobiSVD<Eigen::MatrixXf> svd(jacobian);
+            getJacobian(J);
+            Eigen::JacobiSVD<Eigen::MatrixXf> svd(J);
             Eigen::VectorXf dtheta = svd.solve(dp);
             
             updateAngles(dtheta);
