@@ -66,6 +66,31 @@ public:
     }
 };
 
+void
+BallJoint::move() {
+    glRotatef(radToDeg(currRot.x()), 1.0f, 0.0f, 0.0f);
+    glRotatef(radToDeg(currRot.y()), 0.0f, 1.0f, 0.0f);
+    glRotatef(radToDeg(currRot.z()), 0.0f, 0.0f, 1.0f);
+}
+
+void
+BallJoint::render() {
+    glColor3f(0.1, 0.3, 1.0);
+    glutSolidCone(1.0f, length, 20, 20);        
+}
+
+void
+System::render() {
+    for (int i = 0; i < joints.size(); i++) {
+        joints[i]->move();
+        joints[i]->render();
+        glTranslatef(0.0f, 0.0f, joints[i]->length);
+    }
+
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glutSolidSphere(3.0f, 20, 20);
+}
+
 void updateSystem() {
 
 }

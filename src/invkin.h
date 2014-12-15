@@ -6,6 +6,8 @@
 
 #define PI 3.14159265
 
+int debug = 0;
+
 //Forward method declaration
 float clampAngle(float, float);
 float degToRad(float);
@@ -50,17 +52,6 @@ public:
         numColumns = 3;
     }
 
-    void move() {
-        glRotatef(radToDeg(currRot.x()), 1.0f, 0.0f, 0.0f);
-        glRotatef(radToDeg(currRot.y()), 0.0f, 1.0f, 0.0f);
-        glRotatef(radToDeg(currRot.z()), 0.0f, 0.0f, 1.0f);
-    }
-
-    void render() {
-        glColor3f(0.1, 0.3, 1.0);
-        glutSolidCone(1.0f, length, 20, 20);        
-    }
-
     void update(float dx, float dy, float dz) {
         currRot[0] += dx;
         currRot[1] += dy;
@@ -81,6 +72,14 @@ public:
         bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.x(), Eigen::Vector3f(1, 0, 0)));
         bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.y(), Eigen::Vector3f(0, 1, 0)));
         bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.z(), Eigen::Vector3f(0, 0, 1)));
+
+        if (debug > 2) {
+            std::cout << "BallJoint update:" << std::endl;
+            std::cout << "currRot = " << std::endl << currRot << std::endl;
+            std::cout << "worldToBody = " << std::endl << worldToBody.matrix() << std::endl;
+            std::cout << "bodyToWorld = " << std::endl << bodyToWorld.matrix() << std::endl;
+            std::cout << std::endl;
+        }
     }
 
     void getJacobian(Eigen::MatrixXf &J, Eigen::Vector3f p) {
@@ -94,6 +93,9 @@ public:
         J(2, 1) = p.x();
         J(2, 2) = 0;
     }
+
+    void move();
+    void render();
 };
 
 
@@ -130,7 +132,7 @@ public:
             joint = joints[i];
             t.setIdentity();
             t.translate(Eigen::Vector3f(0, 0, joint->length));
-            endpoint = joint->worldToBody * endpoint;
+            endpoint = joint->bodyToWorld * t * endpoint;
         }
     }
 
@@ -148,22 +150,44 @@ public:
     void getJacobian(Eigen::MatrixXf &J) {
         Eigen::Vector3f p(0, 0, 0);
         int col;
-        Eigen::MatrixXf jac(3, 3);
+        Eigen::MatrixXf jac;
         Eigen::Transform<float, 3, Eigen::Affine> t;
 
         Joint* joint;
         col = J.cols();
+
+        if (debug > 1) {
+            std::cout << "Calculating local jacobian:" << std::endl;
+        }
         //Start from the last arm, iterating backward, to calculate the jacobian local to each arm.
         for (int i = joints.size()-1; i >= 0; i--) {
             joint = joints[i];
             //Get the p vector.
             t.setIdentity();
             t.translate(Eigen::Vector3f(0, 0, joint->length));
-            p = t * joint->worldToBody * p;
+            //p = joint->worldToBody * t * p;
+            p = joint->bodyToWorld * t * p;
             //Get the local jacobian.
             col -= joint->numColumns;
+            jac = Eigen::MatrixXf(3, joint->numColumns);
             joint->getJacobian(jac, p);
+            if (debug > 1) {
+                std::cout << "Joint #" << i << ":" << std::endl;
+                std::cout << "  length = " << joint->length << std::endl;
+                std::cout << "  numColumns = " << joint->numColumns << std::endl;
+                std::cout << "size of system jacobian = (" << J.rows() << ", " << J.cols() << ")" << std::endl;
+                std::cout << "p = " << std::endl << p << std::endl;
+                std::cout << "size of jac = (" << jac.rows() << ", " << jac.cols() << ")" << std::endl;
+                std::cout << "col = " << col << std::endl;
+                std::cout << "jac = " << std::endl << jac << std::endl;
+                std::cout << "block = " << std::endl << J.block(0, col, 3, joint->numColumns) << std::endl;
+                std::cout << std::endl;
+            }
             J.block(0, col, 3, joint->numColumns) = jac;
+        }
+
+        if (debug > 1) {
+            std::cout << "Transforming jacobian to global:" << std::endl;
         }
 
         t.setIdentity();
@@ -171,7 +195,15 @@ public:
         //Start from the first arm, to transform the local jacobian into world space.
         for (int i = 0; i < joints.size(); i++) {
             joint = joints[i];
-            J.block(0, col, 3, joint->numColumns) = t.matrix() * J.block(0, col, 3, joint->numColumns);
+            if (debug > 1) {
+                std::cout << "Joint #" << i << std::endl;
+                std::cout << "Jacobian before = " << std::endl << J.block(0, col, 3, joint->numColumns) << std::endl;
+            }
+            J.block(0, col, 3, joint->numColumns) = t.matrix().block(0, 0, 3, 3) * J.block(0, col, 3, joint->numColumns);
+            if (debug >> 1) {
+                std::cout << "Jacobian after = " << std::endl << J.block(0, col, 3, joint->numColumns) << std::endl;
+
+            }
             col += joint->numColumns;
             t = t * joint->bodyToWorld;
         }
@@ -198,23 +230,14 @@ public:
         return true;
     }
 
-    void render() {
-        for (int i = 0; i < joints.size(); i++) {
-            joints[i]->move();
-            joints[i]->render();
-            glTranslatef(0.0f, 0.0f, joints[i]->length);
-        }
-
-        glColor3f(1.0f, 0.0f, 0.0f);
-        glutSolidSphere(3.0f, 20, 20);
-    }
+    void render();
 
 };
 
 float clampAngle(float angle, float range) {
     if (angle >= range)
         angle = angle - range;
-    if (angle <= 0)
+    if (angle < 0)
         angle = range + angle;
     return angle;
 }
