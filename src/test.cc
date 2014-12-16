@@ -109,6 +109,132 @@ bool testJacobian3() {
     return true;
 }
 
+/* Test the jacobian of a system with two arms with first arm at some angle. */
+bool testJacobian4() {
+    vector<Joint*> joints;
+    joints.push_back(new BallJoint(6.0f));
+    joints.push_back(new BallJoint(5.0f));
+    joints[0]->update(0, 0.5 * PI, 0);
+
+    System sys;
+    sys.addJoints(joints);
+
+    Eigen::MatrixXf solution(3, 6);
+    solution << 0, 0, 0, 0, 0, 0,
+                0, 0, -11.0f, 5.0f, 0, 0,
+                0, 11.0f, 0, 0, 5.0f, 0;
+    if (debug)
+        cout << "Expected jacobian:\n" << solution << endl; 
+
+    Eigen::MatrixXf J(3, 6);
+    sys.getJacobian(J);
+    if (debug)
+        cout << "Actual jacobian:\n" << J << endl; 
+
+    if (!solution.isApprox(J)) {
+        cout << "testJacobian4 ..... FAIL" << endl;
+        return false;
+    }
+
+    cout << "testJacobian4 ..... PASS" << endl;
+    return true;
+}
+
+/* Test the jacobian of a system with two arms with second arm at some angle. */
+bool testJacobian5() {
+    vector<Joint*> joints;
+    joints.push_back(new BallJoint(6.0f));
+    joints.push_back(new BallJoint(5.0f));
+    joints[1]->update(0, 0.5 * PI, 0);
+
+    System sys;
+    sys.addJoints(joints);
+
+    Eigen::MatrixXf solution(3, 6);
+    solution << 0, -6.0f, 0, 0, 0, 0,
+                6.0f, 0, -5.0f, 0, 0, -5.0f,
+                0, 5.0f, 0, 0, 5.0f, 0;
+    if (debug)
+        cout << "Expected jacobian:\n" << solution << endl; 
+
+    Eigen::MatrixXf J(3, 6);
+    sys.getJacobian(J);
+    if (debug)
+        cout << "Actual jacobian:\n" << J << endl; 
+
+    if (!solution.isApprox(J)) {
+        cout << "testJacobian5 ..... FAIL" << endl;
+        return false;
+    }
+
+    cout << "testJacobian5 ..... PASS" << endl;
+    return true;
+}
+
+/* Test the jacobian of a system with two arms with both arms at some angle. */
+bool testJacobian6() {
+    vector<Joint*> joints;
+    joints.push_back(new BallJoint(6.0f));
+    joints.push_back(new BallJoint(5.0f));
+    joints[0]->update(0, 0.5 * PI, 0);
+    joints[1]->update(0, 0.5 * PI, 0);
+
+    System sys;
+    sys.addJoints(joints);
+
+    Eigen::MatrixXf solution(3, 6);
+    solution << 0, 5.0f, 0, 0, 5.0f, 0,
+                -5.0f, 0, -6.0f, 0, 0, -5.0f,
+                0, 6.0f, 0, 0, 0, 0;
+    if (debug)
+        cout << "Expected jacobian:\n" << solution << endl; 
+
+    Eigen::MatrixXf J(3, 6);
+    sys.getJacobian(J);
+    if (debug)
+        cout << "Actual jacobian:\n" << J << endl; 
+
+    if (!solution.isApprox(J)) {
+        cout << "testJacobian6 ..... FAIL" << endl;
+        return false;
+    }
+
+    cout << "testJacobian6 ..... PASS" << endl;
+    return true;
+}
+
+/* Test the jacobian of a system with two arms with both arms at some angle. */
+bool testJacobian7() {
+    vector<Joint*> joints;
+    joints.push_back(new BallJoint(6.0f));
+    joints.push_back(new BallJoint(5.0f));
+    joints[0]->update(0, 0.5 * PI, 0);
+    joints[1]->update(0, -0.5 * PI, 0);
+
+    System sys;
+    sys.addJoints(joints);
+
+    Eigen::MatrixXf solution(3, 6);
+    solution << 0, -5.0f, 0, 0, -5.0f, 0,
+                5.0f, 0, -6.0f, 0, 0, 5.0f,
+                0, 6.0f, 0, 0, 0, 0;
+    if (debug)
+        cout << "Expected jacobian:\n" << solution << endl; 
+
+    Eigen::MatrixXf J(3, 6);
+    sys.getJacobian(J);
+    if (debug)
+        cout << "Actual jacobian:\n" << J << endl; 
+
+    if (!solution.isApprox(J)) {
+        cout << "testJacobian7 ..... FAIL" << endl;
+        return false;
+    }
+
+    cout << "testJacobian7 ..... PASS" << endl;
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     if (argc > 1) {
         string s(argv[1]);
@@ -120,6 +246,10 @@ int main(int argc, char *argv[]) {
     allPassed &= testJacobian1();
     allPassed &= testJacobian2();
     allPassed &= testJacobian3();
+    allPassed &= testJacobian4();
+    allPassed &= testJacobian5();
+    allPassed &= testJacobian6();
+    allPassed &= testJacobian7();
 
     /*Eigen::Transform<float, 3, Eigen::Affine> t;
     t.setIdentity();

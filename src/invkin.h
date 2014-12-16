@@ -150,7 +150,7 @@ public:
     void getJacobian(Eigen::MatrixXf &J) {
         Eigen::Vector3f p(0, 0, 0);
         int col;
-        Eigen::MatrixXf jac;
+        Eigen::MatrixXf jac(3, 3);
         Eigen::Transform<float, 3, Eigen::Affine> t;
 
         Joint* joint;
@@ -183,7 +183,7 @@ public:
                 std::cout << "block = " << std::endl << J.block(0, col, 3, joint->numColumns) << std::endl;
                 std::cout << std::endl;
             }
-            J.block(0, col, 3, joint->numColumns) = jac;
+            J.block(0, col, 3, joint->numColumns) = jac.block(0, 0, 3, joint->numColumns);
         }
 
         if (debug > 1) {
