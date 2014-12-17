@@ -81,14 +81,43 @@ BallJoint::render() {
 
 void
 System::render() {
+    if (!sys.path.isEmpty()) {
+        //Drawing the path.
+        glColor3f(1.0f, 0.0f, 0.0f);
+        sys.path.render();
+        //Drawing the current point on the path.
+        if (sys.goalTooFarAway) {
+            //Red color if goal is unreachable by this system.
+            glColor3f(1.0f, 0.0f, 0.0f);
+        } else {
+            //Else color it green.
+            glColor3f(0.0f, 1.0f, 0.0f);
+        }
+        glTranslatef(sys.currGoal->x(), sys.currGoal->y(), sys.currGoal->z());
+        glutSolidSphere(3.0f, 20, 20);
+        glTranslatef(-sys.currGoal->x(), -sys.currGoal->y(), -sys.currGoal->z());
+    }
+
+    //Draw the arms
     for (int i = 0; i < joints.size(); i++) {
         joints[i]->move();
         joints[i]->render();
         glTranslatef(0.0f, 0.0f, joints[i]->length);
     }
 
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glutSolidSphere(3.0f, 20, 20);
+}
+
+void
+Path::render() {
+    if (this->isEmpty())
+        return;
+    Eigen::Vector3f* v;
+    glBegin(GL_LINE_LOOP);
+        for (int i = 0; i < this->points.size(); i++) {
+            v = this->points[i];
+            glVertex3f(v->x(), v->y(), v->z());
+        }
+    glEnd();
 }
 
 void updateSystem() {
@@ -282,10 +311,15 @@ int main(int argc, char** argv) {
     joints.push_back(new BallJoint(10.0f));
     joints.push_back(new BallJoint(5.0f));
     joints.push_back(new BallJoint(15.0f));
-    joints[0]->update(0, 0.5*PI, 0);
-    joints[1]->update(0.5*PI, 0, 0);
+    //joints[0]->update(0, 0.5*PI, 0);
+    //joints[1]->update(0.5*PI, 0, 0);
+    Path path;
+    path.points.push_back(new Eigen::Vector3f(0, 0, 35));
+    path.points.push_back(new Eigen::Vector3f(35, 0, 0));
+    path.points.push_back(new Eigen::Vector3f(0, 0, -35));
+    path.points.push_back(new Eigen::Vector3f(-35, 0, 0));
 
-    sys.initialize(joints);
+    sys.initialize(joints, path);
 
     bsphere = new BoundingSphere();
     setBoundingSphere(bsphere, sys);

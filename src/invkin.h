@@ -98,6 +98,33 @@ public:
     void render();
 };
 
+class Path {
+public:
+    std::vector<Eigen::Vector3f*> points;         //The points that made up the path.
+    int index;
+
+    Path(): points(), index(0)
+    {
+    }
+
+    bool isEmpty() {
+        return points.size() == 0;
+    }
+
+    Eigen::Vector3f* curr() {
+        return points[index];
+    }
+
+    Eigen::Vector3f* next() {
+        Eigen::Vector3f* p = curr();
+        index++;
+        if (index >= points.size())
+            index = 0;
+        return p;
+    }
+
+    void render();
+};
 
 class System {
 public:
@@ -106,16 +133,22 @@ public:
     Eigen::Vector3f endpoint;       //End point (End effector) of the system of arms in world space.
     Eigen::MatrixXf J;
     float eps;                      //Tolerance of the distance between end point and goal.
+    bool goalTooFarAway;            //Whether the current is too far away for the system to reach or not.
+    Path path;                      //The path this system is moving along.
     int numColumns;
     float length;
+    Eigen::Vector3f* currGoal;
 
-    void initialize(std::vector<Joint*> joints) {
+    void initialize(std::vector<Joint*> joints, Path path) {
+        this->path = path;
+        currGoal = path.curr();
         this->joints = joints;
         basepoint << 0, 0, 0;
         endpoint << 0, 0, 0;
         numColumns = 0;
         length = 0;
         eps = 0.01;
+        goalTooFarAway = false;
         for (int i = 0; i < joints.size(); i++) {
             endpoint[2] += joints[i]->length;
             length += joints[i]->length;
@@ -212,8 +245,10 @@ public:
     bool update(Eigen::Vector3f g) {
         Eigen::Vector3f g_sys = g - basepoint;
 
+        goalTooFarAway = false;
         //If the goal is too far away, use a possible goal instead.
         if (g_sys.norm() > length) {
+            goalTooFarAway = true;
             g = g_sys.normalized() * length;
         }
 

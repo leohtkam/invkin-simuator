@@ -25,7 +25,7 @@ bool testJacobian1() {
     joints.push_back(new BallJoint(6.0f));
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 3);
     solution << 0, -6.0f, 0,
@@ -56,7 +56,7 @@ bool testJacobian2() {
     joints[0]->update(0, 0.5 * PI, 0);
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 3);
     solution << 0, 0, 0,
@@ -86,7 +86,7 @@ bool testJacobian3() {
     joints.push_back(new BallJoint(5.0f));
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 6);
     solution << 0, -11.0f, 0, 0, -5.0f, 0,
@@ -117,7 +117,7 @@ bool testJacobian4() {
     joints[0]->update(0, 0.5 * PI, 0);
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 6);
     solution << 0, 0, 0, 0, 0, 0,
@@ -148,7 +148,7 @@ bool testJacobian5() {
     joints[1]->update(0, 0.5 * PI, 0);
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 6);
     solution << 0, -6.0f, 0, 0, 0, 0,
@@ -180,7 +180,7 @@ bool testJacobian6() {
     joints[1]->update(0, 0.5 * PI, 0);
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 6);
     solution << 0, 5.0f, 0, 0, 5.0f, 0,
@@ -212,7 +212,7 @@ bool testJacobian7() {
     joints[1]->update(0, -0.5 * PI, 0);
 
     System sys;
-    sys.initialize(joints);
+    sys.initialize(joints, Path());
 
     Eigen::MatrixXf solution(3, 6);
     solution << 0, -5.0f, 0, 0, -5.0f, 0,
