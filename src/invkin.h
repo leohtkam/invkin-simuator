@@ -109,7 +109,7 @@ public:
     int numColumns;
     float length;
 
-    void addJoints(std::vector<Joint*> joints) {
+    void initialize(std::vector<Joint*> joints) {
         this->joints = joints;
         basepoint << 0, 0, 0;
         endpoint << 0, 0, 0;

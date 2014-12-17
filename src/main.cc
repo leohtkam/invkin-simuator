@@ -282,9 +282,10 @@ int main(int argc, char** argv) {
     joints.push_back(new BallJoint(10.0f));
     joints.push_back(new BallJoint(5.0f));
     joints.push_back(new BallJoint(15.0f));
-    ((BallJoint*) joints[0])->currRot<< 0, 0.5 * PI, 0;
+    joints[0]->update(0, 0.5*PI, 0);
+    joints[1]->update(0.5*PI, 0, 0);
 
-    sys.joints = joints;
+    sys.initialize(joints);
 
     bsphere = new BoundingSphere();
     setBoundingSphere(bsphere, sys);
