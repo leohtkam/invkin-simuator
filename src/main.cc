@@ -96,7 +96,7 @@ System::render() {
             glColor3f(0.0f, 1.0f, 0.0f);
         }
         glTranslatef(sys.currGoal->x(), sys.currGoal->y(), sys.currGoal->z());
-        glutSolidSphere(1.0f, 20, 20);
+        glutSolidSphere(0.5f, 20, 20);
         glTranslatef(-sys.currGoal->x(), -sys.currGoal->y(), -sys.currGoal->z());
     }
 
@@ -114,16 +114,30 @@ Path::render() {
     if (this->isEmpty())
         return;
     Eigen::Vector3f* v;
-    glBegin(GL_LINE_LOOP);
+    glBegin(GL_LINES);
         for (int i = 0; i < this->points.size(); i++) {
             v = this->points[i];
             glVertex3f(v->x(), v->y(), v->z());
         }
+        v = this->points[0];
+        glVertex3f(v->x(), v->y(), v->z());
     glEnd();
 }
 
+bool pressed = false;
 void updateSystem() {
-
+    /*if (!pressed)
+        return;
+    pressed = false;*/
+    sys.currGoal = sys.path.curr();
+    sys.update(*sys.currGoal);
+    sys.path.next();
+    cout << endl;
+    if (debug > 1) {
+        cout << "Current goal =" << endl << *sys.currGoal << endl;
+        cout << "Current endpoint =" << endl << sys.endpoint << endl;
+        cout << "Current rotation =" << endl << ((BallJoint*)sys.joints[0])->currRot << endl;
+    }
 }
 
 void renderSystem() {
@@ -172,6 +186,7 @@ void display() {
 
     glFlush();
     glutSwapBuffers();  // Swap the front and back frame buffers (double buffering)
+    glutPostRedisplay();
 }
  
 /* Handler for window re-size event. Called back when the window first appears and
@@ -326,6 +341,10 @@ void keyboard(unsigned char key, int x, int y) {
         case 'p':
         case 'P':
             paused = !paused;
+            break;
+        case 'n':
+            pressed = true;
+            break;
         default:
             return;
     }

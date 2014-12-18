@@ -53,9 +53,9 @@ public:
     }
 
     void update(float dx, float dy, float dz) {
-        currRot[0] += dx;
-        currRot[1] += dy;
-        currRot[2] += dz;
+        currRot[0] -= dx;
+        currRot[1] -= dy;
+        currRot[2] -= dz;
 
         currRot[0] = clampAngle(currRot[0], 2*PI);
         currRot[1] = clampAngle(currRot[1], 2*PI);
@@ -172,10 +172,11 @@ public:
     void updateAngles(Eigen::VectorXf dtheta) {
         int x = 0;
         for (int i = 0; i < joints.size(); i++) {
-            if (joints[i]->numColumns == 3)
+            joints[i]->update(dtheta[x], dtheta[x+1], dtheta[x+2]);
+            /*if (joints[i]->numColumns == 3)
                 joints[i]->update(dtheta[x], dtheta[x+1], dtheta[x+2]);
             else
-                joints[i]->update(dtheta[x], 0, 0);
+                joints[i]->update(dtheta[x], 0, 0);*/
             x += joints[i]->numColumns;
         }
     }
@@ -247,7 +248,7 @@ public:
 
         goalTooFarAway = false;
         //If the goal is too far away, use a possible goal instead.
-        if (g_sys.norm() > length) {
+        if (g_sys.norm() > length + eps) {
             goalTooFarAway = true;
             g = g_sys.normalized() * length;
         }
@@ -255,9 +256,21 @@ public:
         Eigen::Vector3f dp = g - endpoint;
         if (dp.norm() > eps) {
             getJacobian(J);
-            Eigen::JacobiSVD<Eigen::MatrixXf> svd(J);
-            Eigen::VectorXf dtheta = svd.solve(dp);
             
+            if (debug > 1) {
+                std::cout << "Solving pseudoinverse:" << std::endl;
+                std::cout << "Jacobian =" << std::endl << J << std::endl;
+                std::cout << "dp =" << std::endl << dp << std::endl;
+            }
+
+            Eigen::JacobiSVD<Eigen::MatrixXf> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
+            Eigen::VectorXf dtheta = svd.solve(dp);
+
+            if (debug > 1) {
+                std::cout << "dtheta =" << std::endl << dtheta << std::endl;
+            }
+
+
             updateAngles(dtheta);
             updateEndPoint();
             return false;
