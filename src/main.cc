@@ -37,6 +37,7 @@ float radToDeg(float);
 
 /* Global variables */
 char title[] = "Inverse Kinematic Simulator";
+string filename = "testCircle.invkin";
 BoundingSphere* bsphere;
 System sys;
 float currZoom = 0.0f;
@@ -47,6 +48,7 @@ float amountTrans = 0.05f;
 float yRot = 0.0f;
 float xRot = 0.0f;
 float amountRot = 5;  //Degree
+bool paused = false;
 GLfloat aspect;
 
 
@@ -94,7 +96,7 @@ System::render() {
             glColor3f(0.0f, 1.0f, 0.0f);
         }
         glTranslatef(sys.currGoal->x(), sys.currGoal->y(), sys.currGoal->z());
-        glutSolidSphere(3.0f, 20, 20);
+        glutSolidSphere(1.0f, 20, 20);
         glTranslatef(-sys.currGoal->x(), -sys.currGoal->y(), -sys.currGoal->z());
     }
 
@@ -163,7 +165,9 @@ void display() {
     glRotatef(xRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
     glRotatef(yRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
 
-    updateSystem();
+    //Do not update system if the simulation is paused.
+    if (!paused)
+        updateSystem();
     renderSystem();
 
     glFlush();
@@ -190,33 +194,124 @@ void reshape(GLsizei width, GLsizei height) {  // GLsizei for non-negative integ
 
 
 /* Parse commandline arguments. */
-/*void parseCommandLineOptions(int argc, char *argv[]) {
-    string s;
-    if (argc < 3) {
-        cerr << "Not enough arguemnts, need at least .bez file name and parameter." << endl;
-        exit(1);
-    }
-    filename = argv[1];
-    s = string(argv[2]);
-    stringstream ss(s);
-    ss >> parameter;
-    if (ss.fail()) {
-        cerr << "Invalid value for parameter, should be float: " << s << endl;
-        exit(1);
-    }
-    if (argc > 3) {
-        for (int i = 3; i < argc; i++) {
+void parseCommandLineOptions(int argc, char *argv[]) {
+    if (argc > 1) {
+        string s;
+        for (int i = 1; i < argc; i++) {
             s = string(argv[i]);
-            if (s == "-a")
-                isUniform = false;
-            else if (s == "-d")
-                debug = true;
-            else 
-                cout << "Ignored unknown option " << s << endl;
+            if (s == "-p") {
+                paused = true;
+            } else if (s == "--debug" || s == "-d") {
+                string s2(argv[i+1]);
+                stringstream ss(s2);
+                i++;
+                if (ss.fail()) {
+                    cerr << "Invalid format for '-d/--debug' option." << endl;
+                } else
+                    ss >> debug;
+            }else {
+                filename = argv[i];
+            }
         }
     }
-}*/
+}
 
+Path parsePathFile(const char* inputfile) {
+    fstream f(inputfile);
+    string line;
+
+    if (!f.is_open()) {
+        cerr << "Failed to open input file '" << inputfile << "'." << endl;
+        exit(1);
+    }
+    Path path;
+    float x, y, z;
+    int linecount = 1;
+    while(getline(f, line)) {
+        stringstream ss(line);
+        if (line.at(0) == '#') {
+            //Do nothing
+        } else {
+            ss >> x >> y >> z;
+            if (ss.fail()) {
+                cerr << "Error parsing path file '" << inputfile << "' on line " << linecount << endl;
+                exit(1);
+            }
+            path.points.push_back(new Eigen::Vector3f(x, y, z));
+        }
+        linecount++;
+    }
+    f.close();
+    cout << path << endl;
+    return path;
+}
+
+vector<Joint*> parseJointFile(const char* inputfile) {
+    fstream f(inputfile);
+    string line;
+
+    if (!f.is_open()) {
+        cerr << "Failed to open input file '" << inputfile << "'." << endl;
+        exit(1);
+    }
+    vector<Joint*> joints;
+    float length, rotx, roty, rotz;
+    string s;
+    int linecount = 1;
+    while(getline(f, line)) {
+        stringstream ss(line);
+        ss >> s;
+        if (line.at(0) == '#') {
+            //Do nothing
+        }
+        //Ball joint
+        else if (s == "bj") {
+            ss >> length >> rotx >> roty >> rotz;
+            if (ss.fail()) {
+                cerr << "Error parsing Joint file '" << inputfile << "' on line " << linecount << endl;
+                exit(1);
+            }
+            BallJoint* bj = new BallJoint(length);
+            if (rotx != 0 || roty != 0 || rotz != 0)
+                bj->update(rotx, roty, rotz);
+            joints.push_back(bj);
+            cout << *bj << endl;
+        } else {
+            cout << "Ignoring unknown joint type on line " << linecount << ": '" << line << "'." << endl;
+        }
+        linecount++;
+    }
+    f.close();
+    return joints;
+}
+
+void parseConfigFile(const char* inputfile) {
+    fstream f(inputfile);
+    string line;
+
+    if (!f.is_open()) {
+        cerr << "Failed to open input file '" << inputfile << "'." << endl;
+        exit(1);
+    }
+    string pathfile;
+    string jointfile;
+
+    getline(f, line);
+    while(line.at(0) == '#') {
+        getline(f, line);
+    }
+    stringstream ss(line);
+    ss >> pathfile;
+    getline(f, line);
+    ss.str("");
+    ss << line;
+    ss >> jointfile;
+
+    f.close();
+    Path path = parsePathFile(pathfile.c_str());
+    vector<Joint*> joints = parseJointFile(jointfile.c_str());
+    sys.initialize(joints, path);
+}
 
 /* Handler for keystroke */
 void keyboard(unsigned char key, int x, int y) {
@@ -228,6 +323,9 @@ void keyboard(unsigned char key, int x, int y) {
         case '-':
             currZoom -= amountZoom;
             break;
+        case 'p':
+        case 'P':
+            paused = !paused;
         default:
             return;
     }
@@ -288,6 +386,7 @@ void setBoundingSphere(BoundingSphere *bsphere, System sys) {
 void printout() {
     cout << "Number of joints = " << sys.joints.size() << endl;
     cout << "Radius of bounding sphere = " << bsphere->radius << endl;
+    cout << "Debug level = " << debug << endl;
 }
 
 /* Main function: GLUT runs as a console application starting at main() */
@@ -305,21 +404,8 @@ int main(int argc, char** argv) {
     glutSpecialFunc(SpecialInput);  // Register callback handler for special keystroke
     initGL();                       // Our own OpenGL initialization
  
-    vector<Joint*> joints;   
-    //parseCommandLineOptions(argc, argv);
-    joints.push_back(new BallJoint(5.0f));
-    joints.push_back(new BallJoint(10.0f));
-    joints.push_back(new BallJoint(5.0f));
-    joints.push_back(new BallJoint(15.0f));
-    //joints[0]->update(0, 0.5*PI, 0);
-    //joints[1]->update(0.5*PI, 0, 0);
-    Path path;
-    path.points.push_back(new Eigen::Vector3f(0, 0, 35));
-    path.points.push_back(new Eigen::Vector3f(35, 0, 0));
-    path.points.push_back(new Eigen::Vector3f(0, 0, -35));
-    path.points.push_back(new Eigen::Vector3f(-35, 0, 0));
-
-    sys.initialize(joints, path);
+    parseCommandLineOptions(argc, argv);
+    parseConfigFile(filename.c_str());
 
     bsphere = new BoundingSphere();
     setBoundingSphere(bsphere, sys);

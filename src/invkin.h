@@ -285,5 +285,14 @@ float degToRad(float deg) {
     return deg * PI / 180.0f;
 }
 
+std::ostream& operator<<(std::ostream &strm, const BallJoint &bj) {
+    strm << "Ball Joint: length(" << bj.length << "), rotation(" << bj.currRot.x() << ", " << bj.currRot.y() << ", " << bj.currRot.z() << ")" << std::endl;
+    return strm;
+}
+
+std::ostream& operator<<(std::ostream &strm, const Path &p) {
+    strm << "Path: " << p.points.size() << " points" << std::endl;
+    return strm;
+}
 
 #endif /* INVKIN_H */
