@@ -1,0 +1,39 @@
+Names: Leo Kam, Chris Hsu
+
+Platform: Linux Ubuntu
+
+Source code is in the as4/src directory. The libraries I used are Eigen (for matrix math) and OpenGL (for rendering), which are in the as4/include directory and as4 directory respectively. To compile, cd into as4 directory and run "make" (might need to run "make clean" to get rid of old files), which will generate a binary file called invkin in the as4 directory.
+
+Usage:
+    ./invkin [config filename] [options]
+
+    This command will read the provided file for the configuration of the joints and path and then open a window showing the simulation of the system of joints tracing (or trying to trace) the path. Call "./invkin" with no other arguments will prompt it to use the default config, which is the same configuration as the video shown on our web page. Please see the sections below for command line options and user inputs during the simulation.
+
+Command line options:
+    -p                  Start the simulation paused. Can still rotate, tranlate, and/or zoom via keyboard inputs.Press 'p' to pause/unpause.
+    -d DEBUG_LEVEL      Set the debug level. Expects an integer.
+
+Interaction in simulation:
+    During the simulation, user can use keypress to interact with the simulation.
+
+    arrow keys              Rotate the system of joints and path. 
+    shift + arrow keys      Translate the system of joints and path on the plane orthogonal to camera.
+    +=/-                    Zoom in and out.
+    p                       Pause and unpause simulation. Calling "./invkin" with option '-p' will start the simulation paused.
+    n                       Press while paused to advance one time step.
+
+Config file:
+    Config files (.config) should contain two lines of text. The first should be the path to the path file and the second to the joint file.
+
+    The path file (.path) contains the configuration of a path. For a path divided into N points, it should contain N lines, with 3 floating point numbers separated by whitespace on each line, representating the x,y,z coordinates of the points. In the simulation, the goal point will be found by repeatedly iterating through this list of points.
+
+    The joint file (.joint) contains the configuration of the system of joints. Each line represents a joint. Each joint is the child of the joint in the previous line, so the first line is the root joint.
+    For ball joint, it is this format:
+        bj length rotx roty rotz
+    where length, rotx, roty and rotz are floats, and the rot* represents the angles of the joint relative to x,y,z axis.
+    Note that a ball joint with length L and no rotation (bl L 0 0 0) will be pointing toward the camera (+z direction), thus if the base of the joint is at (0, 0, 0), its end point will be (0, 0, L).
+
+    Lines starting with "#" are treated as comments and ignored.
+
+    The first point of a path should coincide with the end point of a system of joints (which is the end point of the tip joint).
+    
