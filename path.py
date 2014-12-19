@@ -42,11 +42,12 @@ def getCircle(u, v, r, c, division=3600):
         p.append(c + r * cos(i * step) * u + r * sin(i * step) * v)
     return p
 
-t = pi / 2. / 3.
+t = 0.
 u = numpy.array([0., -sin(t), cos(t)])
 v = numpy.array([1., 0., 0.])
-r = 30.
-exp_c = numpy.array([0., -20 * sin(t), 15 + 20 * cos(t)])
+r = 50.
+#exp_c = numpy.array([0., -20 * sin(t), 15 + 20 * cos(t)])
+exp_c = numpy.array([0., 0., 60])
 c = exp_c - r * u
 
 p = getThing(20,0,20)

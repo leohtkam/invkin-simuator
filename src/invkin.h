@@ -13,7 +13,7 @@ float radToDeg(float);
 
 //Variables
 int debug = 0;
-float updateCap = degToRad(10.0f);         //The maximum update value allowed for each time step.
+float updateCap = degToRad(5.0f);         //The maximum update value allowed for each time step.
 float dpCapRatio = 0.05;                   //The ratio of system's length for dp value allowed for each time step.
 float eps = 0.01;                          //Tolerance of the distance between end point and goal.
 
@@ -285,9 +285,9 @@ public:
 
         goalTooFarAway = false;
         //If the goal is too far away, use a possible goal instead.
-        if (g_sys.norm() > this->length + eps) {
+        if (g_sys.norm() > this->length + 0.01) {
             goalTooFarAway = true;
-            g = g_sys.normalized() * (this->length - eps);
+            g = g_sys.normalized() * this->length * 0.99;
         }
 
         Eigen::Vector3f dp = g - this->endpoint;
