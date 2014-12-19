@@ -11,6 +11,13 @@ def getCircle(r, division=1800):
         p.append([r * sin(i * step), 0.0, r * cos(i * step)])
     return p
 
+def getThing(r1, r2, r3, division=1800):
+    p = []
+    step = 2 * pi / division
+    for i in xrange(division):
+        p.append([r1 * sin(i * step), 0, r3 * cos(i * step)])
+    return p
+
 def getShape(r, x_factor, z_factor, division=1800):
     p = []
     step = 2 * pi / division
@@ -42,5 +49,5 @@ r = 30.
 exp_c = numpy.array([0., -20 * sin(t), 15 + 20 * cos(t)])
 c = exp_c - r * u
 
-p = getCircle(u, v, r, c)
-writeToFile("config/circle3.path", p)
+p = getThing(20,0,20)
+writeToFile("config/ellipse.path", p)

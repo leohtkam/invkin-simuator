@@ -9,9 +9,11 @@
 #ifdef OSX
 #include <GLUT/glut.h>
 #include <OpenGL/glu.h>
+#include <OpenGL/gl.h>
 #else
-#include <GL/glu.h>
-#include <GL/glut.h>
+#include <GLUT/glut.h>
+#include <OpenGL/glu.h>
+#include <OpenGL/gl.h>
 #endif
 
 #include <time.h>
@@ -328,7 +330,7 @@ void parseConfigFile(const char* inputfile) {
 
     f.close();
     Path path = parsePathFile(pathfile.c_str());
-    vector<Joint*> joints = parseJointFile(jointfile.c_str());
+    vector<Joint*> joints = parseJointFile("config/final.joint");
     sys.initialize(joints, path);
 }
 
