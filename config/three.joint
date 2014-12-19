@@ -1,0 +1,4 @@
+# System of three arm with total length of 60.
+bj 20 0 90 0
+bj 20 0 -90 0
+bj 20 0 -90 0
