@@ -50,5 +50,5 @@ r = 50.
 exp_c = numpy.array([0., 0., 60])
 c = exp_c - r * u
 
-p = getThing(20,0,20)
+p = getThing(80,0,20)
 writeToFile("config/ellipse.path", p)
