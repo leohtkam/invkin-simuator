@@ -11,6 +11,7 @@ Usage:
 
 Command line options:
     -p                  Start the simulation paused. Can still rotate, tranlate, and/or zoom via keyboard inputs.Press 'p' to pause/unpause.
+    -s STEPSIZE         How fast the simulation steps through the points of a path. Default is 1, which iterates through every points of the path one by one. Expects an integer.
     -d DEBUG_LEVEL      Set the debug level. Expects an integer.
 
 Interaction in simulation:
