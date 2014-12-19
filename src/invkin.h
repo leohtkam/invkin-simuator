@@ -6,30 +6,29 @@
 
 #define PI 3.14159265
 
-int debug = 0;
-
 //Forward method declaration
 float clampAngle(float, float);
 float degToRad(float);
 float radToDeg(float);
 
+//Variables
+int debug = 0;
+float updateCap = degToRad(10.0f);         //The maximum update value allowed for each time step.
+
 class Joint {
 public:
     float length;
     Eigen::Transform<float, 3, Eigen::Affine> bodyToWorld;
-    Eigen::Transform<float, 3, Eigen::Affine> worldToBody;
     int numColumns;
 
     Joint(): length(0), numColumns(0)
     {
         bodyToWorld.setIdentity();
-        worldToBody.setIdentity();
     }
 
     Joint(float length): length(length), numColumns(0)
     {
         bodyToWorld.setIdentity();
-        worldToBody.setIdentity();
     }
 
     virtual void move() {}
@@ -61,12 +60,6 @@ public:
         currRot[1] = clampAngle(currRot[1], 2*PI);
         currRot[2] = clampAngle(currRot[2], 2*PI);
 
-        //The transformation for calculating the p vector for this joint.
-        worldToBody.setIdentity();
-        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.x(), Eigen::Vector3f(1, 0, 0)));
-        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.y(), Eigen::Vector3f(0, 1, 0)));
-        worldToBody.rotate(Eigen::AngleAxis<float>(-1 * currRot.z(), Eigen::Vector3f(0, 0, 1)));
-
         //The transformation for changing Jacobian back to global Jacobian.
         bodyToWorld.setIdentity();
         bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.x(), Eigen::Vector3f(1, 0, 0)));
@@ -76,7 +69,6 @@ public:
         if (debug > 2) {
             std::cout << "BallJoint update:" << std::endl;
             std::cout << "currRot = " << std::endl << currRot << std::endl;
-            std::cout << "worldToBody = " << std::endl << worldToBody.matrix() << std::endl;
             std::cout << "bodyToWorld = " << std::endl << bodyToWorld.matrix() << std::endl;
             std::cout << std::endl;
         }
@@ -115,9 +107,9 @@ public:
         return points[index];
     }
 
-    Eigen::Vector3f* next() {
+    Eigen::Vector3f* next(int step) {
         Eigen::Vector3f* p = curr();
-        index++;
+        index += step;
         if (index >= points.size())
             index = 0;
         return p;
@@ -137,35 +129,38 @@ public:
     Path path;                      //The path this system is moving along.
     int numColumns;
     float length;
+    float maxDtheta;
+    bool overThreshold;
     Eigen::Vector3f* currGoal;
+
 
     void initialize(std::vector<Joint*> joints, Path path) {
         this->path = path;
         currGoal = path.curr();
         this->joints = joints;
         basepoint << 0, 0, 0;
-        endpoint << 0, 0, 0;
+        updateEndPoint(endpoint);
         numColumns = 0;
         length = 0;
         eps = 0.01;
+        maxDtheta = 0.0f;
         goalTooFarAway = false;
         for (int i = 0; i < joints.size(); i++) {
-            endpoint[2] += joints[i]->length;
             length += joints[i]->length;
             numColumns += joints[i]->numColumns;
         }
         J = Eigen::MatrixXf(3, numColumns);
     }
 
-    void updateEndPoint() {
-        endpoint << 0, 0, 0;
+    void updateEndPoint(Eigen::Vector3f &ep) {
+        ep << 0, 0, 0;
         Eigen::Transform<float, 3, Eigen::Affine> t;
         Joint* joint;
         for (int i = joints.size() - 1; i >= 0; i--) {
             joint = joints[i];
             t.setIdentity();
             t.translate(Eigen::Vector3f(0, 0, joint->length));
-            endpoint = joint->bodyToWorld * t * endpoint;
+            ep = joint->bodyToWorld * t * ep;
         }
     }
 
@@ -178,6 +173,21 @@ public:
             else
                 joints[i]->update(dtheta[x], 0, 0);*/
             x += joints[i]->numColumns;
+        }
+    }
+
+    // Do some preprocessing of the dtheta, like storing the max (in magn) and clamping at some value.
+    void processDtheta(Eigen::VectorXf &dtheta) {
+        overThreshold = false;
+        for (int i = 0; i < dtheta.size(); i++) {
+            maxDtheta = std::max(maxDtheta, (float)fabs(dtheta[i]));
+            if (fabs(dtheta[i]) > updateCap) {
+                overThreshold = true;
+                if (dtheta[i] < 0)
+                    dtheta[i] = -updateCap;
+                else
+                    dtheta[i] = updateCap;
+            }
         }
     }
 
@@ -243,6 +253,33 @@ public:
         }
     }
 
+    void hackhack(Eigen::VectorXf &dtheta, Eigen::Vector3f &g) {
+        processDtheta(dtheta);
+        updateAngles(dtheta);
+        updateEndPoint(endpoint);
+
+        /*Eigen::Vector3f ep;
+        updateEndPoint(ep);
+
+        if ((g - ep).norm() <= (g - endpoint).norm()) {
+            //Nothing wrong
+            endpoint = ep;
+        } else {
+            std::cout << "=====================================" << std::endl;
+            std::cout << "Moving away from goal!!!!" << std::endl;
+            std::cout << "Goal = " << std::endl << g << std::endl;
+            std::cout << "Current endpoint = " << std::endl << endpoint << std::endl;
+            std::cout << "New endpoint = " << std::endl << ep << std::endl;
+            for (int i = 0; i < joints.size(); i++) {
+                std::cout << "Current rotation for joint #" << i << ":" << std::endl;
+                std::cout << ((BallJoint*)joints[i])->currRot << std::endl;
+            }
+            std::cout << "=====================================" << std::endl;
+            updateAngles(-2 * dtheta);
+            updateEndPoint(endpoint);
+        }*/
+    }
+
     bool update(Eigen::Vector3f g) {
         Eigen::Vector3f g_sys = g - basepoint;
 
@@ -250,7 +287,7 @@ public:
         //If the goal is too far away, use a possible goal instead.
         if (g_sys.norm() > length + eps) {
             goalTooFarAway = true;
-            g = g_sys.normalized() * length;
+            g = g_sys.normalized() * (length - eps);
         }
 
         Eigen::Vector3f dp = g - endpoint;
@@ -263,16 +300,18 @@ public:
                 std::cout << "dp =" << std::endl << dp << std::endl;
             }
 
-            Eigen::JacobiSVD<Eigen::MatrixXf> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
-            Eigen::VectorXf dtheta = svd.solve(dp);
+            Eigen::VectorXf dtheta = J.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(dp);
 
-            if (debug > 1) {
+            if (debug > 0) {
+                std::cout << "Goal = " << std::endl << g << std::endl;
+                std::cout << "End point = " << std::endl << endpoint << std::endl;
+                std::cout << "Goal beyond reach = " << goalTooFarAway << std::endl;
+                std::cout << "dp = " << std::endl << dp << std::endl;
                 std::cout << "dtheta =" << std::endl << dtheta << std::endl;
             }
 
 
-            updateAngles(dtheta);
-            updateEndPoint();
+            hackhack(dtheta, g);
             return false;
         }
         return true;
@@ -283,10 +322,10 @@ public:
 };
 
 float clampAngle(float angle, float range) {
-    if (angle >= range)
-        angle = angle - range;
-    if (angle < 0)
-        angle = range + angle;
+    if (angle >= 0.5 * range)
+        angle = angle - 0.5 * range;
+    if (angle < -0.5 * range)
+        angle = 0.5 * range + angle;
     return angle;
 }
 

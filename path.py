@@ -1,4 +1,5 @@
 from math import pi, cos, sin
+import numpy
 
 # Return a list of points representing a circle with radius R, centered at origin and on xz plane.
 # With DIVISION points.
@@ -25,3 +26,21 @@ def writeToFile(filename, points):
     for x, y, z in points:
         f.write("%f %f %f\n" % (x, y, z))
     f.close()
+
+c = numpy.array([0., 0., 0.]);
+def getCircle(u, v, r, c, division=3600):
+    p = []
+    step = 2 * pi / division
+    for i in xrange(division):
+        p.append(c + r * cos(i * step) * u + r * sin(i * step) * v)
+    return p
+
+t = pi / 2. / 3.
+u = numpy.array([0., -sin(t), cos(t)])
+v = numpy.array([1., 0., 0.])
+r = 30.
+exp_c = numpy.array([0., -20 * sin(t), 15 + 20 * cos(t)])
+c = exp_c - r * u
+
+p = getCircle(u, v, r, c)
+writeToFile("config/circle3.path", p)

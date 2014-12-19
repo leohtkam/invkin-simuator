@@ -31,9 +31,6 @@
 using namespace std;
 
 class BoundingSphere;
-float clampAngle(float, float);
-float degToRad(float);
-float radToDeg(float);
 
 /* Global variables */
 char title[] = "Inverse Kinematic Simulator";
@@ -48,7 +45,9 @@ float amountTrans = 0.05f;
 float yRot = 0.0f;
 float xRot = 0.0f;
 float amountRot = 5;  //Degree
+int stepSize = 1;
 bool paused = false;
+bool pressed = false;
 GLfloat aspect;
 
 
@@ -124,14 +123,13 @@ Path::render() {
     glEnd();
 }
 
-bool pressed = false;
 void updateSystem() {
     /*if (!pressed)
         return;
     pressed = false;*/
     sys.currGoal = sys.path.curr();
     sys.update(*sys.currGoal);
-    sys.path.next();
+    sys.path.next(stepSize);
     if (debug > 1) {
         cout << endl;
         cout << "Current goal =" << endl << *sys.currGoal << endl;
@@ -175,13 +173,15 @@ void display() {
     glLoadIdentity();
     glTranslatef(0.0f, 0.0f, currZoom * bsphere->radius); // user input zoom.
     glTranslatef(0.0f, 0.0f, -1.0f * 1.5 * (2 * bsphere->radius / tan(PI / 4.0f)));    // initial zoom.
-    glTranslatef(xTrans, yTrans, 0.0f);          // user input translation.
+    glTranslatef(xTrans * bsphere->radius, yTrans * bsphere->radius, 0.0f);          // user input translation.
     glRotatef(xRot, 1.0f, 0.0f, 0.0f);           // user input rotation.
     glRotatef(yRot, 0.0f, 1.0f, 0.0f);           // user input rotation.
 
-    //Do not update system if the simulation is paused.
-    if (!paused)
+    //Update system only if the simulation is not paused or if 'n' key was pressed.
+    if (!paused || pressed) {
+        pressed = false;
         updateSystem();
+    }
     renderSystem();
 
     glFlush();
@@ -224,7 +224,13 @@ void parseCommandLineOptions(int argc, char *argv[]) {
                     cerr << "Invalid format for '-d/--debug' option." << endl;
                 } else
                     ss >> debug;
-            }else {
+            } else if (s == "-s") {
+                stringstream ss;
+                ss << argv[i+1];
+                i++;
+                ss >> stepSize;
+                stepSize = max(1, stepSize);
+            } else {
                 filename = argv[i];
             }
         }
@@ -344,6 +350,7 @@ void keyboard(unsigned char key, int x, int y) {
             break;
         case 'n':
             pressed = true;
+            cout << "Max dtheta = " << radToDeg(sys.maxDtheta) << " degree" << endl;
             break;
         default:
             return;
@@ -400,6 +407,18 @@ void setBoundingSphere(BoundingSphere *bsphere, System sys) {
     bsphere->radius = 0.0f;
     for (int i = 0; i < sys.joints.size(); i++)
         bsphere->radius += sys.joints[i]->length;
+
+    Eigen::Vector3f* p;
+    for (int i = 0; i < sys.path.points.size(); i++) {
+        p = sys.path.points[i];
+        bsphere->pmin[0] = min(bsphere->pmin[0], p->x());
+        bsphere->pmin[1] = min(bsphere->pmin[1], p->y());
+        bsphere->pmin[2] = min(bsphere->pmin[2], p->z());
+        bsphere->pmax[0] = max(bsphere->pmax[0], p->x());
+        bsphere->pmax[1] = max(bsphere->pmax[1], p->y());
+        bsphere->pmax[2] = max(bsphere->pmax[2], p->z());
+    }
+    bsphere->radius = max(bsphere->radius, ((bsphere->pmax - bsphere->pmin) / 2.0f).norm());    
 }
 
 void printout() {
