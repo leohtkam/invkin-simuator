@@ -14,6 +14,8 @@ float radToDeg(float);
 //Variables
 int debug = 0;
 float updateCap = degToRad(10.0f);         //The maximum update value allowed for each time step.
+float dpCapRatio = 0.05;                   //The ratio of system's length for dp value allowed for each time step.
+float eps = 0.01;                          //Tolerance of the distance between end point and goal.
 
 class Joint {
 public:
@@ -52,9 +54,9 @@ public:
     }
 
     void update(float dx, float dy, float dz) {
-        currRot[0] -= dx;
-        currRot[1] -= dy;
-        currRot[2] -= dz;
+        currRot[0] += dx;
+        currRot[1] += dy;
+        currRot[2] += dz;
 
         currRot[0] = clampAngle(currRot[0], 2*PI);
         currRot[1] = clampAngle(currRot[1], 2*PI);
@@ -62,9 +64,9 @@ public:
 
         //The transformation for changing Jacobian back to global Jacobian.
         bodyToWorld.setIdentity();
-        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.x(), Eigen::Vector3f(1, 0, 0)));
-        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.y(), Eigen::Vector3f(0, 1, 0)));
-        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.z(), Eigen::Vector3f(0, 0, 1)));
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.x(), Eigen::Vector3f::UnitX()));
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.y(), Eigen::Vector3f::UnitY()));
+        bodyToWorld.rotate(Eigen::AngleAxis<float>(currRot.z(), Eigen::Vector3f::UnitZ()));
 
         if (debug > 2) {
             std::cout << "BallJoint update:" << std::endl;
@@ -75,6 +77,7 @@ public:
     }
 
     void getJacobian(Eigen::MatrixXf &J, Eigen::Vector3f p) {
+        p = -1.0f * p;
         J(0, 0) = 0;
         J(0, 1) = -p.z();
         J(0, 2) = p.y();
@@ -124,7 +127,6 @@ public:
     Eigen::Vector3f basepoint;      //Base point of the system of arms in world space.
     Eigen::Vector3f endpoint;       //End point (End effector) of the system of arms in world space.
     Eigen::MatrixXf J;
-    float eps;                      //Tolerance of the distance between end point and goal.
     bool goalTooFarAway;            //Whether the current is too far away for the system to reach or not.
     Path path;                      //The path this system is moving along.
     int numColumns;
@@ -138,18 +140,17 @@ public:
         this->path = path;
         currGoal = path.curr();
         this->joints = joints;
-        basepoint << 0, 0, 0;
-        updateEndPoint(endpoint);
-        numColumns = 0;
-        length = 0;
-        eps = 0.01;
+        this->basepoint << 0, 0, 0;
+        updateEndPoint(this->endpoint);
+        this->numColumns = 0;
+        this->length = 0;
         maxDtheta = 0.0f;
         goalTooFarAway = false;
         for (int i = 0; i < joints.size(); i++) {
-            length += joints[i]->length;
-            numColumns += joints[i]->numColumns;
+            this->length += joints[i]->length;
+            this->numColumns += joints[i]->numColumns;
         }
-        J = Eigen::MatrixXf(3, numColumns);
+        this->J = Eigen::MatrixXf(3, numColumns);
     }
 
     void updateEndPoint(Eigen::Vector3f &ep) {
@@ -209,7 +210,6 @@ public:
             //Get the p vector.
             t.setIdentity();
             t.translate(Eigen::Vector3f(0, 0, joint->length));
-            //p = joint->worldToBody * t * p;
             p = joint->bodyToWorld * t * p;
             //Get the local jacobian.
             col -= joint->numColumns;
@@ -249,7 +249,7 @@ public:
 
             }
             col += joint->numColumns;
-            t = t * joint->bodyToWorld;
+            t = joint->bodyToWorld * t;
         }
     }
 
@@ -281,16 +281,22 @@ public:
     }
 
     bool update(Eigen::Vector3f g) {
-        Eigen::Vector3f g_sys = g - basepoint;
+        Eigen::Vector3f g_sys = g - this->basepoint;
 
         goalTooFarAway = false;
         //If the goal is too far away, use a possible goal instead.
-        if (g_sys.norm() > length + eps) {
+        if (g_sys.norm() > this->length + eps) {
             goalTooFarAway = true;
-            g = g_sys.normalized() * (length - eps);
+            g = g_sys.normalized() * (this->length - eps);
         }
 
-        Eigen::Vector3f dp = g - endpoint;
+        Eigen::Vector3f dp = g - this->endpoint;
+        if (dp.norm() > dpCapRatio * this->length) {
+            std::cout << "dp exceeding cap of " << dpCapRatio*this->length << std::endl;
+            /*std::cout << "old dp = " << std::endl << dp << std::endl;
+            dp = dpCapRatio * length * dp.normalized();
+            std::cout << "new dp = " << std::endl << dp << std::endl << std::endl;*/
+        }
         if (dp.norm() > eps) {
             getJacobian(J);
             

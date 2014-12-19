@@ -69,9 +69,7 @@ public:
 
 void
 BallJoint::move() {
-    glRotatef(radToDeg(currRot.x()), 1.0f, 0.0f, 0.0f);
-    glRotatef(radToDeg(currRot.y()), 0.0f, 1.0f, 0.0f);
-    glRotatef(radToDeg(currRot.z()), 0.0f, 0.0f, 1.0f);
+    glMultMatrixf(this->bodyToWorld.data());
 }
 
 void
