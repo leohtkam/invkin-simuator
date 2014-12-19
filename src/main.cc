@@ -132,8 +132,8 @@ void updateSystem() {
     sys.currGoal = sys.path.curr();
     sys.update(*sys.currGoal);
     sys.path.next();
-    cout << endl;
     if (debug > 1) {
+        cout << endl;
         cout << "Current goal =" << endl << *sys.currGoal << endl;
         cout << "Current endpoint =" << endl << sys.endpoint << endl;
         cout << "Current rotation =" << endl << ((BallJoint*)sys.joints[0])->currRot << endl;
@@ -288,7 +288,7 @@ vector<Joint*> parseJointFile(const char* inputfile) {
             }
             BallJoint* bj = new BallJoint(length);
             if (rotx != 0 || roty != 0 || rotz != 0)
-                bj->update(rotx, roty, rotz);
+                bj->update(degToRad(rotx), degToRad(roty), degToRad(rotz));
             joints.push_back(bj);
             cout << *bj << endl;
         } else {
