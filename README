@@ -35,5 +35,4 @@ Config file:
 
     Lines starting with "#" are treated as comments and ignored.
 
-    The first point of a path should coincide with the end point of a system of joints (which is the end point of the tip joint).
-    
+    The first point of a path should coincide with the initial end point of a system of joints (which is the end point of the tip joint).
