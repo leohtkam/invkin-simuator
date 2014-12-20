@@ -1,8 +1,12 @@
-Names: Leo Kam, Chris Hsu
+Names: Leo Kam (cs184-dn), Chris Hsu (cs184-ax)
 
 Platform: Linux Ubuntu
 
+Submission: Submitted by Leo Kam
+
 Source code is in the as4/src directory. The libraries I used are Eigen (for matrix math) and OpenGL (for rendering), which are in the as4/include directory and as4 directory respectively. To compile, cd into as4 directory and run "make" (might need to run "make clean" to get rid of old files), which will generate a binary file called invkin in the as4 directory.
+
+The video is linked on the assignment 4 page of our web page (http://www-inst.eecs.berkeley.edu/~cs184-ax/assignments/assignment4/assing4.html). The simulation shown in the video is the same one made with calling "./invkin", except we did some rotation and zooming to get a good view before starting the simulation.
 
 Usage:
     ./invkin [config filename] [options]
