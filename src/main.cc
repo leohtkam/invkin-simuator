@@ -329,7 +329,7 @@ void parseConfigFile(const char* inputfile) {
 
     f.close();
     Path path = parsePathFile(pathfile.c_str());
-    vector<Joint*> joints = parseJointFile("config/final.joint");
+    vector<Joint*> joints = parseJointFile(jointfile.c_str());
     sys.initialize(joints, path);
 }
 
