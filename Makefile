@@ -7,9 +7,6 @@ ifeq ($(shell sw_vers 2>/dev/null | grep Mac | awk '{ print $$2}'),Mac)
 	LDFLAGS = -framework GLUT -framework OpenGL \
     	-L"/System/Library/Frameworks/OpenGL.framework/Libraries" \
     	-lGL -lGLU -lm -lstdc++
-else
-	CXXFLAGS = -Iinclude -g -DGL_GLEXT_PROTOTYPES -Iglut-3.7.6-bin -O2
-	LDFLAGS = -lm -lGL -lglut -lGLU
 endif
 
 SRCDIR = src
