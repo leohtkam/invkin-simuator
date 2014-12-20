@@ -15,7 +15,7 @@ def getThing(r1, r2, r3, division=1800):
     p = []
     step = 2 * pi / division
     for i in xrange(division):
-        p.append([r1 * sin(i * step), 0, r3 * cos(i * step)])
+        p.append([r1 * sin(i * step) + 40, 0, r3 * cos(i * step)])
     return p
 
 def getShape(r, x_factor, z_factor, division=1800):
@@ -50,5 +50,5 @@ r = 50.
 exp_c = numpy.array([0., 0., 60])
 c = exp_c - r * u
 
-p = getThing(80,0,20)
+p = getThing(40,0,20)
 writeToFile("config/ellipse.path", p)

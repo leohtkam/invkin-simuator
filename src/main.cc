@@ -35,7 +35,7 @@ class BoundingSphere;
 
 /* Global variables */
 char title[] = "Inverse Kinematic Simulator";
-string filename = "testCircle.invkin";
+string filename = "final.invkin";
 BoundingSphere* bsphere;
 System sys;
 float currZoom = 0.0f;
